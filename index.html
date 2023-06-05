@@ -1,148 +1,610 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8">
-    <title>Snake Game</title>
-    <link rel="stylesheet" type="text/css" href="style.css">
-  </head>
-  <body>
-    <h1>Zdravo2</h1>
-    <canvas id="canvas"></canvas>
-    <script src="script.js"></script>
-    <script>
-      // Define shared dependencies
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-const requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
-const addEventListener = document.addEventListener.bind(document);
-const Math_floor = Math.floor;
-const Math_random = Math.random;
-const setInterval = window.setInterval.bind(window);
-const clearInterval = window.clearInterval.bind(window);
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <script src="https://www.gstatic.com/firebasejs/9.6.9/firebase-app-compat.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/9.6.9/firebase-database-compat.js"></script>
+        
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans&display=swap" rel="stylesheet">
 
-// Define game variables
-let snake = [{x: 10, y: 10}];
-let food = {x: Math_floor(Math_random() * 20), y: Math_floor(Math_random() * 20)};
-let dx = 0;
-let dy = 0;
-let score = 0;
-let intervalId = null;
+        <title>Snake Game</title>
+        <style>
+        body {
+            background-color: #eee;
+            font-family: 'Noto Sans', sans-serif;
 
-// Define game constants
-const GRID_SIZE = 20;
-const GAME_SPEED = 100;
 
-// Draw a square at the given (x, y) coordinates
-function drawSquare(x, y, color) {
-  ctx.fillStyle = color;
-  ctx.fillRect(x * GRID_SIZE, y * GRID_SIZE, GRID_SIZE, GRID_SIZE);
-}
+        }
+        canvas {
+            margin: auto;
+            display: block;
+            border: 1px solid #aaa;
+        }
+        canvas:focus {
+            outline: none;
+        }
+        .alert {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px;
+            background-color: #fff;
+            border: 1px solid #aaa;
+            border-radius: 5px;
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+        div {
+            text-align: center;
+            font-size: 18px;
+            margin-top: 10px;
+        }
 
-// Draw the snake
-function drawSnake() {
-  snake.forEach(segment => drawSquare(segment.x, segment.y, "green"));
-}
+    .nevidno{display:none}
 
-// Draw the food
-function drawFood() {
-  drawSquare(food.x, food.y, "red");
-}
+    button.close-btn {
+        font-size: 20px;
+        border-radius: 10px;
+        color: #cd0000;}
 
-// Move the snake
-function moveSnake() {
-  // Add a new head to the snake
-  const head = {x: snake[0].x + dx, y: snake[0].y + dy};
-  snake.unshift(head);
 
-  // Check if the snake has collided with the food
-  if (head.x === food.x && head.y === food.y) {
-    // Increase the score and generate new food
-    score++;
-    food = {x: Math_floor(Math_random() * 20), y: Math_floor(Math_random() * 20)};
-  } else {
-    // Remove the tail of the snake
-    snake.pop();
-  }
-}
 
-// Check if the snake has collided with the walls or itself
-function checkCollision() {
-  const head = snake[0];
-
-  // Check if the snake has collided with the walls
-  if (head.x < 0 || head.x >= GRID_SIZE || head.y < 0 || head.y >= GRID_SIZE) {
-    return true;
-  }
-
-  // Check if the snake has collided with itself
-  for (let i = 1; i < snake.length; i++) {
-    if (head.x === snake[i].x && head.y === snake[i].y) {
-      return true;
+    .snake-head {
+        position: absolute;
+        width: 0;
+        height: 0;
+        border-top: 10px solid transparent;
+        border-bottom: 10px solid transparent;
     }
-  }
+    .snake-head.left {
+        border-right: 10px solid green;
+    }
+    .snake-head.up {
+        border-left: 10px solid green;
+        transform: rotate(270deg);
+    }
+    .snake-head.right {
+        border-left: 10px solid green;
+        transform: rotate(180deg);
+    }
+    .snake-head.down {
+        border-left: 10px solid green;
+        transform: rotate(90deg);
+    }
 
-  return false;
-}
+        
+        </style>
+    </head>
+    <body>
+    <h1 style="margin-bottom:5px">Kača samo za frende</h1>
+    <h3 style="margin-top:10px;padding-bottom:0px;margin-bottom:5px;font-weight:700">Vsak mesec nagrada za prvo mesto(Haha veš da)
+    </h3>
+    <p style="font-size:13px">Ti si zelena kača, rdečo poješ, črna je stena, 1 črna je vedno prazna, sam ugotov kera.
+    Spodi vidiš kater si na lestvici.</p>
+        <canvas id="canvas" width="500" height="500"></canvas>
+        <div>
+        V živo: <span id="liveScore">0
+        </span> 
+        <div class="nevidno">| Najboljši rezultat: <span id="bestScore">0</span></div>
+        <div id="leaderboard"></div>
 
-// Update the game state
-function update() {
-  // Move the snake
-  moveSnake();
+        
+        
+        </div>
+        
+        <script>
 
-  // Check for collisions
-  if (checkCollision()) {
-    // Stop the game
-    clearInterval(intervalId);
-    alert(`Game over! Your score is ${score}.`);
-  }
-}
 
-// Handle keydown events
-function handleKeyDown(event) {
-  switch (event.keyCode) {
-    case 37: // left arrow
-      dx = -1;
-      dy = 0;
-      break;
-    case 38: // up arrow
-      dx = 0;
-      dy = -1;
-      break;
-    case 39: // right arrow
-      dx = 1;
-      dy = 0;
-      break;
-    case 40: // down arrow
-      dx = 0;
-      dy = 1;
-      break;
-    default:
-      break;
-  }
-}
 
-// Start the game
-function startGame() {
-  // Draw the initial game state
-  drawSnake();
-  drawFood();
+    const woodTexture = new Image();
+    woodTexture.src = "https://cdn.glitch.global/ab9bede4-ef16-4e34-9dda-73c364574143/wood.jpg?v=1682463180876";
+    const appleImage = new Image();
+    appleImage.src = "https://cdn.glitch.global/ab9bede4-ef16-4e34-9dda-73c364574143/apple.png?v=1682463176098";
+    const rockImage = new Image();
+    rockImage.src = "https://cdn.glitch.global/ab9bede4-ef16-4e34-9dda-73c364574143/rock.png?v=1682463172301";
 
-  // Start the game loop
-  intervalId = setInterval(() => {
-    // Clear the canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Update the game state
-    update();
+        const firebaseConfig = {
+            apiKey: "AIzaSyBH_QW8s_oqcKqWWELfUsXccpi_AtfX01I",
+        authDomain: "mojime-aa380.firebaseapp.com",
+        databaseURL: "https://mojime-aa380-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "mojime-aa380",
+        storageBucket: "mojime-aa380.appspot.com",
+        messagingSenderId: "820235542787",
+        appId: "1:820235542787:web:6398c4f3890a7550a6c936",
+        measurementId: "G-YCJY78Z6BG"
+        };
 
-    // Draw the game state
-    drawSnake();
-    drawFood();
-  }, GAME_SPEED);
+        const app = firebase.initializeApp(firebaseConfig);
+        const database = firebase.database(app);
+        let touchStartX = null;
+    let touchStartY = null;
+    let touchEndX = null;
+    let touchEndY = null;
+        let canvas = document.getElementById("canvas");
+        let ctx = canvas.getContext("2d");
+    let snake = [{x: 50, y: 50}, {x: 50, y: 50}, {x: 50, y: 50}];
+        let food = {x: 100, y: 100};
+        let gridSize = 10;
+        let gameover = false;
+        let speed = 150;
+        let maxSpeed = 50;
+        let maxSpeedIncrements = 10;
+            let speedIncrementCount = 0;
 
-  // Add event listener for keydown events
-  addEventListener("keydown", handleKeyDown);
-}
-    </script>
-  </body>
-</html>
+        let liveScore = 0;
+        let bestScore = 0;
+
+        let foodBlinking = false;
+
+        let wall = generateWall();
+            let wallBlinking = false;
+            let nextWall;
+            
+            let wall2 = generateWall();
+    let wall2Blinking = false;
+    let nextWall2;
+
+
+
+        
+
+            
+            
+        function updateScore() {
+            document.getElementById("liveScore").innerText = liveScore;
+            document.getElementById("bestScore").innerText = bestScore;
+        }
+
+    function drawSnake() {
+        ctx.fillStyle = "green";
+        for (let i = 0; i < snake.length; i++) {
+            if (i === 0) {
+                drawSnakeHead(snake[i].x, snake[i].y);
+            } else {
+                drawSnakeBody(snake[i].x, snake[i].y);
+            }
+        }
+    }
+
+    function drawSnakeBody(x, y) {
+        let bodySize = gridSize;
+        let scalePattern = gridSize / 8;
+
+        // Draw the snake body
+        ctx.fillStyle = "green";
+        ctx.beginPath();
+        ctx.arc(x + bodySize / 2, y + bodySize / 2, bodySize / 2, 0, 2 * Math.PI);
+        ctx.fill();
+
+        // Draw the scale pattern
+        ctx.strokeStyle = "darkgreen";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x + scalePattern, y + bodySize / 2);
+        ctx.lineTo(x + bodySize - scalePattern, y + bodySize / 2);
+        ctx.stroke();
+    }
+
+    function drawSnakeHead(x, y) {
+        let headSize = gridSize;
+        let eyeSize = gridSize / 4;
+        let eyeOffsetX = gridSize / 3;
+        let eyeOffsetY = gridSize / 4;
+
+        // Draw the snake head
+        ctx.fillStyle = "green";
+        ctx.beginPath();
+        ctx.arc(x + headSize / 2, y + headSize / 2, headSize / 2, 0, 2 * Math.PI);
+        ctx.fill();
+
+        // Draw the eyes
+        ctx.fillStyle = "white";
+        ctx.beginPath();
+        ctx.arc(x + eyeOffsetX, y + eyeOffsetY, eyeSize / 2, 0, 2 * Math.PI);
+        ctx.arc(x + headSize - eyeOffsetX, y + eyeOffsetY, eyeSize / 2, 0, 2 * Math.PI);
+        ctx.fill();
+
+        // Draw the pupils
+        ctx.fillStyle = "black";
+        ctx.beginPath();
+        ctx.arc(x + eyeOffsetX, y + eyeOffsetY, eyeSize / 4, 0, 2 * Math.PI);
+        ctx.arc(x + headSize - eyeOffsetX, y + eyeOffsetY, eyeSize / 4, 0, 2 * Math.PI);
+        ctx.fill();
+    }
+
+
+
+        function moveSnake() {
+            let head = {x: snake[0].x, y: snake[0].y};
+            switch (direction) {
+            case "left":
+                head.x -= gridSize;
+                if (head.x < 0) {
+                head.x = canvas.width - gridSize;
+                }
+                break;
+                case "up":
+                head.y -= gridSize;
+                if (head.y < 0) {
+                head.y = canvas.height - gridSize;
+                }
+                break;
+            case "right":
+                head.x += gridSize;
+                if (head.x >= canvas.width) {
+                head.x = 0;
+                }
+                break;
+            case "down":
+                head.y += gridSize;
+                if (head.y >= canvas.height) {
+                head.y = 0;
+                }
+                break;
+            }
+            snake.unshift(head);
+            if (isColliding(head, food)) {
+                    food = generateFood();
+                    if (speed > maxSpeed && speedIncrementCount < maxSpeedIncrements) {
+                        speed /= 1.2;
+                        speedIncrementCount++;
+                    }
+                    liveScore++;
+                    if (liveScore > bestScore) {
+                        bestScore = liveScore;
+                    }
+                    updateScore();
+                } else {
+                    snake.pop();
+                }
+                checkGameOver();
+            }
+
+            function checkGameOver() {
+        let head = snake[0];
+        for (let i = 1; i < snake.length; i++) {
+            if (head.x === snake[i].x && head.y === snake[i].y) {
+                let score = snake.length - 1;
+                gameover = true;
+                let playerName = prompt("Šupak, tvoj rezultat: " + liveScore + ". Vaš vzdevek:");
+                if (playerName) {
+                    saveScore(playerName, liveScore);
+                }
+                displayScoreboard();
+                restartGame();
+                return;
+            }
+        }
+
+        if (!wallBlinking && (isColliding(head, wall) || isColliding(head, { x: wall.x + gridSize, y: wall.y }) || isColliding(head, { x: wall.x, y: wall.y + gridSize }) || isColliding(head, { x: wall.x + gridSize, y: wall.y + gridSize }))) {
+            gameOver();
+            return;
+        }
+
+        if (head.x < 0 || head.x >= canvas.width || head.y < 0 || head.y >= canvas.height) {
+            let score = snake.length - 1;
+            gameover = true;
+            let playerName = prompt("Šupak, tvoj rezultat: " + liveScore + ". Vaš vzdevek:");
+            if (playerName) {
+                saveScore(playerName, liveScore);
+            }
+            restartGame();
+            return;
+        }
+    }
+
+
+
+
+    function generateWall() {
+        let x = Math.floor(Math.random() * (canvas.width - gridSize * 2) / gridSize) * gridSize;
+        let y = Math.floor(Math.random() * (canvas.height - gridSize * 2) / gridSize) * gridSize;
+        return {x: x, y: y};
+    }
+
+    function generateWall2() {
+        let x = Math.floor(Math.random() * (canvas.width - gridSize * 2) / gridSize) * gridSize;
+        let y = Math.floor(Math.random() * (canvas.height - gridSize * 2) / gridSize) * gridSize;
+        return {x: x, y: y};
+    }
+
+    function drawWall() {
+        if (wallBlinking) {
+            ctx.globalAlpha = 0.5; // Set the opacity to 50% when blinking
+        } else {
+            ctx.globalAlpha = 1; // Set the opacity to 100% when not blinking
+        }
+        ctx.drawImage(rockImage, wall.x, wall.y, gridSize * 2, gridSize * 2);
+        ctx.globalAlpha = 1; // Reset the opacity to 100% after drawing the wall
+
+        if (wall2Blinking) {
+            ctx.globalAlpha = 0.5; // Set the opacity to 50% when blinking
+        } else {
+            ctx.globalAlpha = 1; // Set the opacity to 100% when not blinking
+        }
+        ctx.drawImage(rockImage, wall2.x, wall2.y, gridSize * 2, gridSize * 2);
+        ctx.globalAlpha = 1; // Reset the opacity to 100% after drawing the wall
+    }
+
+
+    function updateWallPosition() {
+        nextWall = generateWall();
+        wallBlinking = false;
+        setTimeout(() => {
+            wall = nextWall;
+            wallBlinking = true;
+        }, 8000);
+
+        nextWall2 = generateWall2();
+        wall2Blinking = false;
+        setTimeout(() => {
+            wall2 = nextWall2;
+            wall2Blinking = true;
+        }, 6000);
+    }
+
+
+
+            setInterval(updateWallPosition, 10000);
+
+
+
+        function restartGame() {
+                snake = [{x: 50, y: 50}];
+                food = generateFood();
+                direction = "right";
+                gameover = false;
+                speed = 100;
+                liveScore = 0;
+                speedIncrementCount = 0;
+                updateScore();
+            }
+
+        function generateFood() {
+            let x = Math.floor(Math.random() * canvas.width / gridSize) * gridSize;
+            let y = Math.floor(Math.random() * canvas.height / gridSize) * gridSize;
+            return {x: x, y: y};
+        }
+        function isColliding(a, b) {
+    return Math.abs(a.x - b.x) < gridSize && Math.abs(a.y - b.y) < gridSize;
+    }
+
+    function drawFood() {
+        ctx.drawImage(appleImage, food.x, food.y, gridSize, gridSize);
+    }
+
+        function update() {
+                if (!gameover) {
+                    ctx.drawImage(woodTexture, 0, 0, canvas.width, canvas.height);                moveSnake();
+                    drawSnake();
+                    drawFood();
+                    drawWall();
+                } else {
+                    alert("GameOver!");
+                }
+                setTimeout(update, speed);
+            }
+            function gameOver() {
+                let score = snake.length - 1;
+                gameover = true;
+                let playerName = prompt("Jaoo si tele, a ne vidiš kam pelješ " + liveScore + ". Vaš vzdevek:");
+                if (playerName) {
+                    saveScore(playerName, liveScore);
+                }
+                displayScoreboard();
+                restartGame();
+            }
+
+
+        let direction = "right";
+    document.addEventListener("keydown", function(event) {
+    switch (event.keyCode) {
+        case 37: // Left
+        if (direction !== "right") {
+            direction = "left";
+        }
+        break;
+        case 38: // Up
+        if (direction !== "down") {
+            direction = "up";
+        }
+        break;
+        case 39: // Right
+        if (direction !== "left") {
+            direction = "right";
+        }
+        break;
+        case 40: // Down
+        if (direction !== "up") {
+            direction = "down";
+        }
+        break;
+    }
+    });
+
+        function saveScore(name, score) {
+            database.ref("scores/").push({
+            name: name,
+            score: score,
+            });
+        }
+
+        
+        function displayLeaderboard() {
+    database.ref("scores/").orderByChild("score").limitToLast(5).on("value", function(snapshot) {
+        let leaderboard = document.getElementById("leaderboard");
+        leaderboard.innerHTML = "<h2>Najboljši</h2>";
+
+        let scores = [];
+        snapshot.forEach(function(data) {
+        scores.push({
+            name: data.val().name,
+            score: data.val().score
+        });
+        });
+
+        scores.sort(function(a, b) {
+        return b.score - a.score;
+        });
+
+        for (let i = 0; i < scores.length; i++) {
+        let entry = document.createElement("p");
+        entry.innerText = (i + 1) + ". " + scores[i].name + ": " + scores[i].score;
+        leaderboard.appendChild(entry);
+        }
+    });
+    }
+
+
+
+    //touch events
+    // touch events
+    const touchSensitivity = 50; // Adjust this value to change the sensitivity of the swipe gestures
+    canvas.addEventListener("touchstart", (event) => {
+        event.preventDefault();
+        touchStartX = event.touches[0].clientX;
+        touchStartY = event.touches[0].clientY;
+    });
+
+    canvas.addEventListener("touchend", (event) => {
+        event.preventDefault();
+        touchEndX = event.changedTouches[0].clientX;
+        touchEndY = event.changedTouches[0].clientY;
+        handleSwipe();
+    });
+
+    canvas.addEventListener("touchcancel", (event) => {
+        event.preventDefault();
+        touchStartX = null;
+        touchStartY = null;
+        touchEndX = null;
+        touchEndY = null;
+    });
+
+    function handleSwipe() {
+        if (touchStartX === null || touchStartY === null || touchEndX === null || touchEndY === null) {
+            return;
+        }
+
+        let deltaX = touchEndX - touchStartX;
+        let deltaY = touchEndY - touchStartY;
+
+        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+            // Horizontal swipe
+            if (deltaX > touchSensitivity && direction !== "left") {
+                direction = "right";
+            } else if (deltaX < -touchSensitivity && direction !== "right") {
+                direction = "left";
+            }
+        } else {
+            // Vertical swipe
+            if (deltaY > touchSensitivity && direction !== "up") {
+                direction = "down";
+            } else if (deltaY < -touchSensitivity && direction !== "down") {
+                direction = "up";
+            }
+        }
+
+        touchStartX = null;
+        touchStartY = null;
+        touchEndX = null;
+        touchEndY = null;
+    }
+
+    //canvas size
+    function setCanvasSize() {
+    let windowWidth = window.innerWidth;
+    let windowHeight = window.innerHeight;
+    let canvasSize = Math.min(windowWidth, windowHeight) * 0.95;
+
+    canvas.width = canvasSize;
+    canvas.height = canvasSize;
+    }
+    window.addEventListener("resize", setCanvasSize);
+
+    //food bliunking
+
+    function drawFood() {
+        let appleSize = gridSize * 2; // Set the apple size to be 2x bigger
+
+        if (foodBlinking) {
+            ctx.globalAlpha = 0.5; // Set the opacity to 50% when blinking
+        } else {
+            ctx.globalAlpha = 1; // Set the opacity to 100% when not blinking
+        }
+        ctx.drawImage(appleImage, food.x - gridSize / 2, food.y - gridSize / 2, appleSize, appleSize);
+        ctx.globalAlpha = 1; // Reset the opacity to 100% after drawing the food
+    }
+
+    function updateFoodPosition() {
+    food = generateFood();
+    foodBlinking = false;
+    setTimeout(() => {
+        foodBlinking = true;
+    }, 7000);
+    }
+
+    setInterval(updateFoodPosition, 10000);
+
+    //scoreboard show ko je konec igre
+
+    function displayScoreboard() {
+    let leaderboard = document.createElement("div");
+    leaderboard.classList.add("alert");
+
+    let title = document.createElement("h2");
+    title.innerText = "Najboljši frendi";
+
+    let scoresList = document.createElement("ol");
+
+    database.ref("scores/").orderByChild("score").limitToLast(10).on("value", function(snapshot) {
+        let scores = [];
+        snapshot.forEach(function(data) {
+        scores.push({
+            name: data.val().name,
+            score: data.val().score
+        });
+        });
+
+        scores.sort(function(a, b) {
+        return b.score - a.score;
+        });
+
+        for (let i = 0; i < scores.length; i++) {
+        let scoreItem = document.createElement("li");
+        scoreItem.innerText = `${scores[i].name}: ${scores[i].score}`;
+        scoresList.appendChild(scoreItem);
+        }
+    });
+
+    let closeButton = document.createElement("button");
+    closeButton.innerText = "X Zapri";
+    closeButton.classList.add("close-btn");
+    closeButton.addEventListener("click", function() {
+        leaderboard.remove();
+    });
+
+    leaderboard.appendChild(closeButton);
+    leaderboard.appendChild(title);
+    leaderboard.appendChild(scoresList);
+    document.body.appendChild(leaderboard);
+    }
+
+
+
+
+
+    setCanvasSize();
+        displayLeaderboard();
+        update();
+        </script>
+    </body>
+    </html>
+
